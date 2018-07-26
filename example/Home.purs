@@ -13,7 +13,7 @@ import Ocelot.HTML.Properties (css)
 -----
 -- Render
 
-render :: H.ComponentHTML Box
+render :: ∀ m. H.ComponentHTML Box () m
 render =
   HH.div
   [ css "flex-1 container p-12" ]
@@ -51,9 +51,11 @@ component = H.component
   , render: const render
   , eval
   , receiver: const Nothing
+  , initializer: Nothing
+  , finalizer: Nothing
   }
 
   where
 
-  eval :: Box ~> H.ComponentDSL Unit Box Void Aff
+  eval :: Box ~> H.HalogenM Unit Box () Void Aff
   eval (Box a) = pure a

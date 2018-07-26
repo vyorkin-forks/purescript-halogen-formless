@@ -10,11 +10,10 @@ import Example.RealWorld.Data.Group (Admin(..), GroupId(..), _maxBudget, _minBud
 import Example.RealWorld.Data.Group as G
 import Example.RealWorld.Render.Field (FieldConfig, adminToString, renderDropdown)
 import Example.RealWorld.Render.Field as Field
-import Example.RealWorld.Types (GroupCQ, GroupCS, GroupTASlot(..), Query(..))
+import Example.RealWorld.Types (GroupSlots, GroupTASlot(..), Query(..), _dropdown, _typeahead)
 import Formless as Formless
 import Formless.Spec (InputField, getField)
 import Halogen as H
-import Halogen.Component.ChildPath as CP
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
@@ -35,7 +34,7 @@ type FormlessState
 
 -- | A convenience synonym for the group Formless HTML type
 type FormlessHTML
-  = Formless.HTML Query GroupCQ GroupCS G.GroupForm G.Group Aff
+  = Formless.HTML Query GroupSlots G.GroupForm G.Group Aff
 
 -- | The form, grouped by sections.
 render :: FormlessState -> FormlessHTML
@@ -103,8 +102,8 @@ renderAdmin state =
       , field: G._admin
       }
       \admin ->
-        HH.slot'
-          CP.cp2
+        HH.slot
+          _dropdown
           unit
           Dropdown.component
           { selectedItem: Nothing
@@ -139,8 +138,8 @@ renderWhiskey state =
       , field: G._whiskey
       }
       $ \whiskey ->
-        HH.slot'
-          CP.cp1
+        HH.slot
+          _typeahead
           WhiskeyTypeahead
           TA.component
           ( TA.Input.defSingle
@@ -248,8 +247,8 @@ multiTypeahead
 multiTypeahead slot query config items state =
   HH.div_
     [ Field.formField state config $ \field ->
-        HH.slot'
-          CP.cp1
+        HH.slot
+          _typeahead
           slot
           TA.component
           ( TA.Input.defMulti

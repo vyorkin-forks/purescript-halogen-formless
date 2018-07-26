@@ -2,7 +2,6 @@ module Example.Basic.Component where
 
 import Prelude
 
-import Data.Const (Const)
 import Data.List.NonEmpty (NonEmptyList)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
@@ -71,30 +70,32 @@ validator (Form form) = pure $ Form
 submitter :: ∀ m. Monad m => Form OutputField -> m Contact
 submitter = pure <<< unwrapOutput
 
-
 -----
 -- Component types
 
 data Query a
   = DoNothing a
 
-type ChildQuery = Formless.Query Query (Const Void) Unit Form Contact Aff
-type ChildSlot = Unit
+type Slots =
+  ( formless :: Formless.Slot Query () Form Contact Aff Unit )
+_formless = SProxy :: SProxy "formless"
 
 -----
 -- Minimal component
 
 component :: H.Component HH.HTML Query Unit Void Aff
-component = H.parentComponent
+component = H.component
   { initialState: const unit
   , render
   , eval
   , receiver: const Nothing
+  , initializer: Nothing
+  , finalizer: Nothing
   }
 
   where
 
-  render :: Unit -> H.ParentHTML Query ChildQuery ChildSlot Aff
+  render :: Unit -> H.ComponentHTML Query Slots Aff
   render st =
     HH.div
     [ css "flex-1 container p-12" ]
@@ -103,6 +104,7 @@ component = H.parentComponent
     , Format.subHeading_
       [ HH.text "A basic contact form." ]
     , HH.slot
+        _formless
         unit
         Formless.component
         { formSpec
@@ -113,7 +115,7 @@ component = H.parentComponent
         (const Nothing)
     ]
 
-  eval :: Query ~> H.ParentDSL Unit Query ChildQuery ChildSlot Void Aff
+  eval :: Query ~> H.HalogenM Unit Query Slots Void Aff
   eval (DoNothing a) = pure a
 
 
@@ -122,7 +124,7 @@ component = H.parentComponent
 
 formless
   :: Formless.State Form Contact Aff
-  -> Formless.HTML Query (Const Void) Unit Form Contact Aff
+  -> Formless.HTML Query () Form Contact Aff
 formless state =
  HH.div_
    [ FormField.field_

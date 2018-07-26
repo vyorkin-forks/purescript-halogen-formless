@@ -2,9 +2,8 @@ module Example.RealWorld.Types where
 
 import Prelude
 
-import Data.Either.Nested (Either2)
-import Data.Functor.Coproduct.Nested (Coproduct2)
 import Data.Maybe (Maybe)
+import Data.Symbol (SProxy(..))
 import Effect.Aff (Aff)
 import Example.RealWorld.Data.Group (Admin, Group, GroupForm)
 import Example.RealWorld.Data.Options (Metric, Options, OptionsForm)
@@ -39,30 +38,27 @@ type State =
   , group :: Maybe Group         -- Our ideal result type from form submission
   }
 
--- | Now we can create _this_ component's child query and child slot pairing.
-type ChildQuery = Coproduct2
-  (Formless.Query Query GroupCQ GroupCS GroupForm Group Aff)
-  (Formless.Query Query OptionsCQ OptionsCS OptionsForm Options Aff)
+type Slots =
+  ( groupForm :: Formless.Slot Query GroupSlots GroupForm Group Aff Unit
+  , optionsForm :: Formless.Slot Query OptionsSlots OptionsForm Options Aff Unit
+  )
 
-type ChildSlot = Either2
-  Unit
-  Unit
+_groupForm = SProxy :: SProxy "groupForm"
+_optionsForm = SProxy :: SProxy "optionsForm"
 
 ----------
 -- Formless
 
--- | Types for the group form
-type GroupCQ = Coproduct2
-  (TA.Query Query String String Aff)
-  (Dropdown.Query Query Admin Aff)
+type GroupSlots =
+  ( typeahead :: TA.Slot Query () String String Aff GroupTASlot
+  , dropdown :: Dropdown.Slot Query Admin Aff Unit
+  )
 
-type GroupCS = Either2
-  GroupTASlot
-  Unit
+_typeahead = SProxy :: SProxy "typeahead"
+_dropdown = SProxy :: SProxy "dropdown"
 
--- | Types for the options form
-type OptionsCQ = Dropdown.Query Query Metric Aff
-type OptionsCS = Unit
+type OptionsSlots =
+  ( dropdown :: Dropdown.Slot Query Metric Aff Unit )
 
 ----------
 -- Slots

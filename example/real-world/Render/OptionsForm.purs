@@ -8,7 +8,7 @@ import Example.RealWorld.Data.Options (Metric(..), Speed(..), _enable, _metric, 
 import Example.RealWorld.Data.Options as OP
 import Example.RealWorld.Render.Field (renderDropdown)
 import Example.RealWorld.Render.Field as Field
-import Example.RealWorld.Types (OptionsCQ, OptionsCS, Query(..))
+import Example.RealWorld.Types (OptionsSlots, Query(..), _dropdown)
 import Example.Utils (showError)
 import Formless as Formless
 import Formless.Spec (getField, getInput)
@@ -31,7 +31,7 @@ type FormlessState
 
 -- | A convenience synonym for the group Formless HTML type
 type FormlessHTML
-  = Formless.HTML Query OptionsCQ OptionsCS OP.OptionsForm OP.Options Aff
+  = Formless.HTML Query OptionsSlots OP.OptionsForm OP.Options Aff
 
 -- | The form, grouped by sections.
 render :: FormlessState -> FormlessHTML
@@ -109,6 +109,7 @@ renderMetric state =
       }
       \metric ->
         HH.slot
+          _dropdown
           unit
           Dropdown.component
           { selectedItem: Nothing

@@ -8,7 +8,7 @@ import Effect.Aff (Aff)
 import Effect.Console as Console
 import Example.Polyform.RenderForm (formless)
 import Example.Polyform.Spec (User, formSpec, submitter, validator)
-import Example.Polyform.Types (ChildQuery, ChildSlot, Query(..), State)
+import Example.Polyform.Types (Query(..), Slots, State, _formless)
 import Formless as Formless
 import Halogen as H
 import Halogen.HTML as HH
@@ -19,15 +19,17 @@ import Record (delete)
 
 component :: H.Component HH.HTML Query Unit Void Aff
 component =
-  H.parentComponent
+  H.component
     { initialState: const unit
     , render
     , eval
     , receiver: const Nothing
+    , initializer: Nothing
+    , finalizer: Nothing
     }
   where
 
-  render :: State -> H.ParentHTML Query ChildQuery ChildSlot Aff
+  render :: State -> H.ComponentHTML Query Slots Aff
   render st =
     HH.div
     [ css "flex-1 container p-12" ]
@@ -54,6 +56,7 @@ component =
         <> "form if it is in a dirty state, and can only submit the form if it is valid."
       ]
     , HH.slot
+        _formless
         unit
         Formless.component
         { formSpec
@@ -64,7 +67,7 @@ component =
         (HE.input HandleFormless)
     ]
 
-  eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Void Aff
+  eval :: Query ~> H.HalogenM State Query Slots Void Aff
   eval = case _ of
     HandleFormless m a -> case m of
       Formless.Emit q -> eval q *> pure a

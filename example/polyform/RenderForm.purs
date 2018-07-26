@@ -5,7 +5,7 @@ import Prelude
 import Data.Maybe (Maybe(..))
 import Effect.Aff (Aff)
 import Example.Polyform.Spec (Form, User, _city, _email, _name, _state)
-import Example.Polyform.Types (FCQ, FCS, Query)
+import Example.Polyform.Types (Query)
 import Example.Utils (showError)
 import Formless as Formless
 import Formless.Spec (getField)
@@ -22,7 +22,7 @@ import Ocelot.HTML.Properties (css)
 -- | anything additional in your own state type, if you'd like.
 formless
   :: Formless.State Form User Aff
-  -> Formless.HTML Query FCQ FCS Form User Aff
+  -> Formless.HTML Query () Form User Aff
 formless state =
   HH.div_
     [ renderName state
@@ -57,7 +57,7 @@ formless state =
 -- | A helper function to render a form text input
 renderName
   :: Formless.State Form User Aff
-  -> Formless.HTML Query FCQ FCS Form User Aff
+  -> Formless.HTML Query () Form User Aff
 renderName state =
   HH.div_
     [ FormField.field_
@@ -82,7 +82,7 @@ renderName state =
 
 renderEmail
   :: Formless.State Form User Aff
-  -> Formless.HTML Query FCQ FCS Form User Aff
+  -> Formless.HTML Query () Form User Aff
 renderEmail state =
   HH.div_
     [ FormField.field_
@@ -104,7 +104,7 @@ renderEmail state =
 
 renderCity
   :: Formless.State Form User Aff
-  -> Formless.HTML Query FCQ FCS Form User Aff
+  -> Formless.HTML Query () Form User Aff
 renderCity state =
   HH.div_
     [ FormField.field_
@@ -126,7 +126,7 @@ renderCity state =
 
 renderState
   :: Formless.State Form User Aff
-  -> Formless.HTML Query FCQ FCS Form User Aff
+  -> Formless.HTML Query () Form User Aff
 renderState state =
   HH.div_
     [ FormField.field_

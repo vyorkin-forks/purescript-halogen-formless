@@ -2,7 +2,7 @@ module Example.Polyform.Types where
 
 import Prelude
 
-import Data.Const (Const)
+import Data.Symbol (SProxy(..))
 import Effect.Aff (Aff)
 import Example.Polyform.Spec (Form, User)
 import Formless as Formless
@@ -16,14 +16,7 @@ data Query a
 
 type State = Unit
 
--- | Now we can create _this_ component's child query and child slot pairing.
-type ChildQuery = Formless.Query Query FCQ FCS Form User Aff
-type ChildSlot = Unit
+type Slots =
+  ( formless :: Formless.Slot Query () Form User Aff Unit )
 
-----------
--- Formless
-
--- | FCQ: Formless ChildQuery
--- | FCS: Formless ChildSlot
-type FCQ = Const Void
-type FCS = Unit
+_formless = SProxy :: SProxy "formless"

@@ -7,13 +7,16 @@ module Formless where
 import Prelude
 
 import Control.Comonad (extract)
+import Halogen.Data.Slot as Slot
 import Control.Comonad.Store (Store, store)
+import Control.Monad.Free (liftF)
 import Data.Eq (class EqRecord)
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Data.Lens as Lens
 import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Lens.Record (prop)
+import Data.Map (Map)
 import Data.Maybe (Maybe(..))
 import Data.Monoid.Additive (Additive)
 import Data.Newtype (class Newtype, over, unwrap, wrap)
@@ -24,11 +27,12 @@ import Formless.Internal as Internal
 import Formless.Spec (FormSpec, InputField, OutputField)
 import Formless.Spec as FSpec
 import Halogen as H
-import Halogen.Component.ChildPath (ChildPath, injQuery, injSlot)
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
+import Halogen.Query.ChildQuery as CQ
 import Prim.Row (class Cons)
+import Prim.Row (class Cons) as Row
 import Prim.RowList (class RowToList) as RL
 import Record as Record
 import Renderless.State (getState, modifyState, modifyState_, modifyStore_, putState)
@@ -37,7 +41,7 @@ import Web.Event.Event (Event)
 import Web.UIEvent.FocusEvent (FocusEvent)
 import Web.UIEvent.MouseEvent (MouseEvent)
 
-data Query pq cq cs form out m a
+data Query pq ps form out m a
   = HandleBlur (form InputField -> form InputField) a
   | HandleChange (form InputField -> form InputField) a
   | HandleReset (form InputField -> form InputField) a
@@ -46,37 +50,39 @@ data Query pq cq cs form out m a
   | Validate a
   | Submit a
   | SubmitReply (Maybe out -> a)
-  | Send cs (cq Unit) a
+  | Send (CQ.ChildQueryBox ps a)
   | Raise (pq Unit) a
   | Replace (Record (SpecRow form out m ())) a
-  | Receive (Input pq cq cs form out m) a
-  | AndThen (Query pq cq cs form out m Unit) (Query pq cq cs form out m Unit) a
+  | Receive (Input pq ps form out m) a
+  | AndThen (Query pq ps form out m Unit) (Query pq ps form out m Unit) a
+
+-- | The slot type
+type Slot pq ps form out m = H.Slot (Query pq ps form out m) (Message pq form out)
 
 -- | The overall component state type, which contains the local state type
 -- | and also the render function
-type StateStore pq cq cs form out m =
-  Store (State form out m) (HTML pq cq cs form out m)
+type StateStore pq ps form out m =
+  Store (State form out m) (HTML pq ps form out m)
 
 -- | The component type
-type Component pq cq cs form out m
+type Component pq ps form out m
   = H.Component
       HH.HTML
-      (Query pq cq cs form out m)
-      (Input pq cq cs form out m)
+      (Query pq ps form out m)
+      (Input pq ps form out m)
       (Message pq form out)
       m
 
 -- | The component's HTML type, the result of the render function.
-type HTML pq cq cs form out m
-  = H.ParentHTML (Query pq cq cs form out m) cq cs m
+type HTML pq ps form out m
+  = H.ComponentHTML (Query pq ps form out m) ps m
 
 -- | The component's DSL type, the result of the eval function.
-type DSL pq cq cs form out m
-  = H.ParentDSL
-      (StateStore pq cq cs form out m)
-      (Query pq cq cs form out m)
-      cq
-      cs
+type DSL pq ps form out m
+  = H.HalogenM
+      (StateStore pq ps form out m)
+      (Query pq ps form out m)
+      ps
       (Message pq form out)
       m
 
@@ -130,9 +136,9 @@ instance showValidStatus :: Show ValidStatus where
   show = genericShow
 
 -- | The component's input type
-type Input pq cq cs form out m = Record
+type Input pq ps form out m = Record
   ( SpecRow form out m
-  + (render :: State form out m -> HTML pq cq cs form out m)
+  + (render :: State form out m -> HTML pq ps form out m)
   )
 
 -- | The component tries to require as few messages to be handled as possible. You
@@ -145,9 +151,8 @@ data Message pq form out
 
 -- | The component itself
 component
-  :: ∀ pq cq cs form out m spec specxs field fieldxs output countxs count inputs inputsxs
-   . Ord cs
-  => Monad m
+  :: ∀ pq ps form out m spec specxs field fieldxs output countxs count inputs inputsxs
+   . Monad m
   => RL.RowToList spec specxs
   => RL.RowToList field fieldxs
   => RL.RowToList count countxs
@@ -164,17 +169,19 @@ component
   => Newtype (form InputField) (Record field)
   => Newtype (form OutputField) (Record output)
   => Newtype (form Internal.Input) (Record inputs)
-  => Component pq cq cs form out m
+  => Component pq ps form out m
 component =
-  H.parentComponent
+  H.component
     { initialState
     , render: extract
     , eval
     , receiver: HE.input Receive
+    , initializer: Nothing
+    , finalizer: Nothing
     }
   where
 
-  initialState :: Input pq cq cs form out m -> StateStore pq cq cs form out m
+  initialState :: Input pq ps form out m -> StateStore pq ps form out m
   initialState { formSpec, validator, render, submitter } = store render $
     { validity: Incomplete
     , dirty: false
@@ -194,7 +201,7 @@ component =
     where
       inputFields = Internal.formSpecToInputFields formSpec
 
-  eval :: Query pq cq cs form out m ~> DSL pq cq cs form out m
+  eval :: Query pq ps form out m ~> DSL pq ps form out m
   eval = case _ of
     HandleBlur fs a -> do
       modifyState_ \st -> st { form = fs st.form }
@@ -276,10 +283,7 @@ component =
       st <- getState
       pure $ reply $ getPublicState st
 
-    -- Only allows actions; always returns nothing.
-    Send cs cq a -> do
-      _ <- H.query cs cq
-      pure a
+    Send box -> H.HalogenM $ liftF $ H.ChildQuery box
 
     Raise query a -> do
       H.raise (Emit query)
@@ -324,7 +328,7 @@ component =
   getPublicState = Record.delete (SProxy :: SProxy "internal")
 
   -- Run submission without raising messages or replies
-  runSubmit :: DSL pq cq cs form out m (Maybe out)
+  runSubmit :: DSL pq ps form out m (Maybe out)
   runSubmit = do
     init <- modifyState \st -> st
       { submitAttempts = st.submitAttempts + 1
@@ -355,31 +359,46 @@ component =
     pure $ _.formResult $ unwrap result.internal
 
 
+--------------------
+-- Querying
+--------------------
+
+send
+  :: ∀ sym pq ps cq cm slot form out m a t0
+   . Row.Cons sym (Slot.Slot cq cm slot) t0 ps
+  => IsSymbol sym
+  => Ord slot
+  => SProxy sym
+  -> slot
+  -> cq a
+  -> Query pq ps form out m (Maybe a)
+send sym slot query = Send $ CQ.mkChildQueryBox $
+  CQ.ChildQuery (\k -> traverse k <<< Slot.lookup sym slot) query identity
+
+sendAll
+  :: ∀ sym pq ps cq cm slot form out m a t0
+   . Row.Cons sym (Slot.Slot cq cm slot) t0 ps
+  => IsSymbol sym
+  => Ord slot
+  => SProxy sym
+  -> cq a
+  -> Query pq ps form out m (Map slot a)
+sendAll sym query = Send $ CQ.mkChildQueryBox $
+  CQ.ChildQuery (\k -> traverse k <<< Slot.slots sym) query identity
 
 --------------------
 -- External to the component
 --------------------
 
--- | When you are using several different types of child components in Formless
--- | the component needs a child path to be able to pick the right slot to send
--- | a query to.
-send' :: ∀ pq cq' cs' cs cq form out m a
-  . ChildPath cq cq' cs cs'
- -> cs
- -> cq Unit
- -> a
- -> Query pq cq' cs' form out m a
-send' path p q = Send (injSlot path p) (injQuery path q)
-
 -- | Provided as a query
 modify
-  :: ∀ sym pq cq cs out m form form' i e o r
+  :: ∀ sym pq ps out m form form' i e o r
    . IsSymbol sym
   => Cons sym (InputField e i o) r form
   => Newtype (form' InputField) (Record form)
   => SProxy sym
   -> (i -> i)
-  -> Query pq cq cs form' out m Unit
+  -> Query pq ps form' out m Unit
 modify sym f = HandleChange (modify' sym f) unit
 
 -- | Allows you to modify a field rather than set its value
@@ -404,13 +423,13 @@ modify' sym f = wrap <<< setInput f <<< setTouched true <<< unwrap
 -- | Handles resetting a single field, but is only possible if the field is
 -- | a member of the Initial type class
 handleReset
-  :: ∀ pq cq cs m sym form' form i e o out r
+  :: ∀ pq ps m sym form' form i e o out r
    . IsSymbol sym
   => Cons sym (InputField e i o) r form
   => Newtype (form' InputField) (Record form)
   => Initial i
   => SProxy sym
-  -> Query pq cq cs form' out m Unit
+  -> Query pq ps form' out m Unit
 handleReset sym = HandleReset (handleReset' sym) unit
 
 handleReset'
@@ -431,45 +450,45 @@ handleReset' sym = wrap <<< unsetTouched <<< unsetResult <<< unsetValue <<< unwr
     unsetValue = Lens.set (_sym <<< _Newtype <<< prop FSpec._input) initial
 
 onClickWith
-  :: ∀ pq cq cs m sym form' form i e o out r props
+  :: ∀ pq ps m sym form' form i e o out r props
    . IsSymbol sym
   => Cons sym (InputField e i o) r form
   => Newtype (form' InputField) (Record form)
   => SProxy sym
   -> i
-  -> HP.IProp (onClick :: MouseEvent | props) (Query pq cq cs form' out m Unit)
+  -> HP.IProp (onClick :: MouseEvent | props) (Query pq ps form' out m Unit)
 onClickWith sym i =
   HE.onClick \_ -> Just (handleBlurAndChange sym i)
 
 -- | Performs behaviors for both blur and change events
 handleBlurAndChange
-  :: ∀ pq cq cs m sym form' form i e o out r
+  :: ∀ pq ps m sym form' form i e o out r
    . IsSymbol sym
   => Cons sym (InputField e i o) r form
   => Newtype (form' InputField) (Record form)
   => SProxy sym
   -> i
-  -> Query pq cq cs form' m out Unit
+  -> Query pq ps form' m out Unit
 handleBlurAndChange sym val = HandleBlur (handleBlur' sym <<< handleChange' sym val) unit
 
 -- | Given a proxy symbol, will trigger validation on that field using
 -- | its validator and current input
 onBlurWith
-  :: ∀ pq cq cs m sym form' form i e o out r props
+  :: ∀ pq ps m sym form' form i e o out r props
    . IsSymbol sym
   => Cons sym (InputField e i o) r form
   => Newtype (form' InputField) (Record form)
   => SProxy sym
-  -> HP.IProp (onBlur :: FocusEvent | props) (Query pq cq cs form' out m Unit)
+  -> HP.IProp (onBlur :: FocusEvent | props) (Query pq ps form' out m Unit)
 onBlurWith sym = HE.onBlur $ const $ Just $ handleBlur sym
 
 handleBlur
-  :: ∀ pq cq cs m sym form' form i e o out r
+  :: ∀ pq ps m sym form' form i e o out r
    . IsSymbol sym
   => Cons sym (InputField e i o) r form
   => Newtype (form' InputField) (Record form)
   => SProxy sym
-  -> Query pq cq cs form' m out Unit
+  -> Query pq ps form' m out Unit
 handleBlur sym = HandleBlur (handleBlur' sym) unit
 
 handleBlur'
@@ -488,44 +507,44 @@ handleBlur' sym form = wrap <<< setTouched $ unwrap form
 
 -- | Replace the value at a given field with a new value of the correct type.
 onValueInputWith
-  :: ∀ pq cq cs m sym form' form e o out r props
+  :: ∀ pq ps m sym form' form e o out r props
    . IsSymbol sym
   => Cons sym (InputField e String o) r form
   => Newtype (form' InputField) (Record form)
   => SProxy sym
-  -> HP.IProp (onInput :: Event, value :: String | props) (Query pq cq cs form' out m Unit)
+  -> HP.IProp (onInput :: Event, value :: String | props) (Query pq ps form' out m Unit)
 onValueInputWith sym =
   HE.onValueInput \str -> Just (handleChange sym str)
 
 onValueChangeWith
-  :: ∀ pq cq cs m sym form' form e o out r props
+  :: ∀ pq ps m sym form' form e o out r props
    . IsSymbol sym
   => Cons sym (InputField e String o) r form
   => Newtype (form' InputField) (Record form)
   => SProxy sym
-  -> HP.IProp (onChange :: Event, value :: String | props) (Query pq cq cs form' out m Unit)
+  -> HP.IProp (onChange :: Event, value :: String | props) (Query pq ps form' out m Unit)
 onValueChangeWith sym =
   HE.onValueChange \str -> Just (handleChange sym str)
 
 onChangeWith
-  :: ∀ pq cq cs m sym form' form i e o out r props
+  :: ∀ pq ps m sym form' form i e o out r props
    . IsSymbol sym
   => Cons sym (InputField e i o) r form
   => Newtype (form' InputField) (Record form)
   => SProxy sym
   -> i
-  -> HP.IProp (onChange :: Event | props) (Query pq cq cs form' out m Unit)
+  -> HP.IProp (onChange :: Event | props) (Query pq ps form' out m Unit)
 onChangeWith sym i =
   HE.onChange \_ -> Just (handleChange sym i)
 
 handleChange
-  :: ∀ pq cq cs m sym form' form i e o out r
+  :: ∀ pq ps m sym form' form i e o out r
    . IsSymbol sym
   => Cons sym (InputField e i o) r form
   => Newtype (form' InputField) (Record form)
   => SProxy sym
   -> i
-  -> Query pq cq cs form' out m Unit
+  -> Query pq ps form' out m Unit
 handleChange sym val = HandleChange (handleChange' sym val) unit
 
 handleChange'

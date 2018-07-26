@@ -3,8 +3,7 @@ module Example.RealWorld.Render.Nav where
 import Prelude
 
 import Effect.Aff (Aff)
-import Example.RealWorld.Types
-  (ChildQuery, ChildSlot, Query(..), State, Tab(..))
+import Example.RealWorld.Types (Slots, Query(..), State, Tab(..))
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -12,7 +11,7 @@ import Halogen.HTML.Properties as HP
 import Ocelot.Block.Button as Button
 import Ocelot.HTML.Properties (css)
 
-tabs :: State -> H.ParentHTML Query ChildQuery ChildSlot Aff
+tabs :: State -> H.ComponentHTML Query Slots Aff
 tabs state =
   HH.ul
   [ css "list-reset flex" ]

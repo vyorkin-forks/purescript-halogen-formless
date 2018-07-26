@@ -5,7 +5,7 @@ import Prelude
 import Data.Maybe (Maybe(..))
 import Effect.Aff (Aff)
 import Example.ExternalComponents.Spec (Form, User, _email, _language, _name, _whiskey)
-import Example.ExternalComponents.Types (FCQ, FCS, Query(..), Slot(..))
+import Example.ExternalComponents.Types (FSlots, Query(..), Slot(..), _typeahead)
 import Example.Utils (showError)
 import Formless as Formless
 import Formless.Spec (getField)
@@ -25,7 +25,7 @@ import Ocelot.HTML.Properties (css)
 -- | anything additional in your own state type.
 formless
   :: Formless.State Form User Aff
-  -> Formless.HTML Query FCQ FCS Form User Aff
+  -> Formless.HTML Query FSlots Form User Aff
 formless state =
   HH.div_
     [ renderName state
@@ -60,7 +60,7 @@ formless state =
 -- | A helper function to render a form text input
 renderName
   :: Formless.State Form User Aff
-  -> Formless.HTML Query FCQ FCS Form User Aff
+  -> Formless.HTML Query FSlots Form User Aff
 renderName state =
   HH.div_
     [ FormField.field_
@@ -82,7 +82,7 @@ renderName state =
 
 renderEmail
   :: Formless.State Form User Aff
-  -> Formless.HTML Query FCQ FCS Form User Aff
+  -> Formless.HTML Query FSlots Form User Aff
 renderEmail state =
   HH.div_
     [ FormField.field_
@@ -92,6 +92,7 @@ renderEmail state =
         , inputId: "email"
         }
         [ HH.slot
+            _typeahead
             EmailTypeahead
             TA.component
             ( TA.Input.defSingle
@@ -113,7 +114,7 @@ renderEmail state =
         ]
     ]
 
-renderWhiskey :: Formless.State Form User Aff -> Formless.HTML Query FCQ FCS Form User Aff
+renderWhiskey :: Formless.State Form User Aff -> Formless.HTML Query FSlots Form User Aff
 renderWhiskey state =
   HH.div_
     [ FormField.field_
@@ -123,6 +124,7 @@ renderWhiskey state =
         , inputId: "whiskey"
         }
         [ HH.slot
+            _typeahead
             WhiskeyTypeahead
             TA.component
             ( TA.Input.defSingle
@@ -145,7 +147,7 @@ renderWhiskey state =
 
 renderLanguage
   :: Formless.State Form User Aff
-  -> Formless.HTML Query FCQ FCS Form User Aff
+  -> Formless.HTML Query FSlots Form User Aff
 renderLanguage state =
   HH.div_
     [ FormField.field_
@@ -155,6 +157,7 @@ renderLanguage state =
         , inputId: "language"
         }
         [ HH.slot
+            _typeahead
             LanguageTypeahead
             TA.component
             ( TA.Input.defSingle

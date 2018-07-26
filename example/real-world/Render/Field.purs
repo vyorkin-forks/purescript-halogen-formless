@@ -41,7 +41,7 @@ data FieldType
   | Text
 
 input
-  :: ∀ form sym e o t0 fields m pq cq cs out
+  :: ∀ form sym e o t0 fields m pq ps out
    . IsSymbol sym
   => Show e
   => Newtype (form InputField) (Record fields)
@@ -49,7 +49,7 @@ input
   => FieldConfig sym
   -> FieldType
   -> Formless.State form out m
-  -> Formless.HTML pq cq cs form out m
+  -> Formless.HTML pq ps form out m
 input config ft state =
   HH.div_
     [ formField state config $ \field ->
@@ -70,7 +70,7 @@ input config ft state =
 -- | A utility to help create form fields using an unwrapped
 -- | field value from a given symbol.
 formField
-  :: ∀ form sym i e o t0 fields m pq cq cs out
+  :: ∀ form sym i e o t0 fields m pq ps out
    . IsSymbol sym
   => Show e
   => Newtype (form InputField) (Record fields)
@@ -81,9 +81,9 @@ formField
        , touched :: Boolean
        , input :: i
        }
-       -> Formless.HTML pq cq cs form out m
+       -> Formless.HTML pq ps form out m
      )
-  -> Formless.HTML pq cq cs form out m
+  -> Formless.HTML pq ps form out m
 formField state config html =
   HH.div_
     [ FormField.field_
@@ -111,5 +111,5 @@ renderDropdown
  -> (item -> String)
  -> String
  -> Dropdown.State item
- -> H.ParentHTML (Dropdown.Query Query item Aff) (Dropdown.ChildQuery Query item) Dropdown.ChildSlot Aff
+ -> H.ComponentHTML (Dropdown.Query Query item Aff) (Dropdown.ChildSlots Query item Aff) Aff
 renderDropdown btnFn change label = DR.render $ DR.defDropdown btnFn [ ] change label
