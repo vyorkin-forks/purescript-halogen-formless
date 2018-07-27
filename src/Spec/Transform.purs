@@ -216,8 +216,6 @@ type FormLens form e i o =
   , input :: ALens' (form InputField) i
   , touched :: ALens' (form InputField) Boolean
   , result :: ALens' (form InputField) (Maybe (Either e o))
-  --  , error :: APrism' (form InputField) e
-  --  , output :: APrism' (form InputField) o
   }
 
 class MakeLenses form (xs :: RL.RowList) (to :: # Type) | xs -> to where
@@ -247,6 +245,4 @@ instance makeLensesCons
         , input: _Input _name
         , touched: _Touched _name
         , result: _Result _name
-        --  , error: _Error _name
-        --  , output: _Output _name
         }
